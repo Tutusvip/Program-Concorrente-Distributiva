@@ -1,0 +1,209 @@
+class Banco {
+    private String nome;
+
+    public Banco(String nome) {
+        this.nome = nome;
+    }
+
+    public synchronized void transferencia(Conta origem, Conta destino, double valor) {
+        if (origem.getSaldo() >= valor) {
+            origem.debitar(valor);
+            destino.creditar(valor);
+            System.out.println("Transferência de R$" + valor + " realizada de " + origem.getNumero() + " para " + destino.getNumero());
+        } else {
+            System.out.println("Transferência de R$" + valor + " de " + origem.getNumero() + " para " + destino.getNumero() + " falhou devido a saldo insuficiente.");
+        }
+    }
+
+    public synchronized double consultarSaldo(Conta conta) {
+        return conta.getSaldo();
+    }
+}
+
+class Loja {
+    private String nome;
+    private Conta conta;
+
+    public Loja(String nome, Conta conta) {
+        this.nome = nome;
+        this.conta = conta;
+    }
+
+    public synchronized void pagarSalario(Funcionario funcionario, double valor) {
+        conta.debitar(valor);
+        funcionario.receberSalario(valor);
+    }
+}
+
+class Funcionario extends Thread {
+    private String nome;
+    private String cargo;
+    private Loja loja;
+    private Conta contaSalario;
+    private Conta contaInvestimentos;
+    private Banco banco;
+
+    public Funcionario(String nome, String cargo, Loja loja, Conta contaSalario, Conta contaInvestimentos, Banco banco) {
+        this.nome = nome;
+        this.cargo = cargo;
+        this.loja = loja;
+        this.contaSalario = contaSalario;
+        this.contaInvestimentos = contaInvestimentos;
+        this.banco = banco;
+    }
+
+    public void receberSalario(double valor) {
+        synchronized (contaSalario) {
+            contaSalario.creditar(valor);
+            System.out.println(nome + " recebeu um salário de R$" + valor + " na conta de salário. Saldo atual: R$" + contaSalario.getSaldo());
+        }
+        // Investir 20% do salário na conta de investimentos
+        double valorInvestimento = valor * 0.20;
+        synchronized (contaInvestimentos) {
+            contaInvestimentos.creditar(valorInvestimento);
+            System.out.println(nome + " investiu R$" + valorInvestimento + " na conta de investimentos. Saldo atual: R$" + contaInvestimentos.getSaldo());
+        }
+    }
+
+    @Override
+    public void run() {
+        while (true) {
+            try {
+                Thread.sleep(ThreadLocalRandom.current().nextInt(5000, 10000)); // Esperar entre 5 e 10 segundos para receber o salário
+                double salario = ThreadLocalRandom.current().nextDouble(1000, 3000); // Salário aleatório entre R$ 1000,00 e R$ 3000,00
+                loja.pagarSalario(this, salario);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+}
+
+class Cliente extends Thread {
+    private String nome;
+    private Conta conta;
+    private Banco banco;
+
+    public Cliente(String nome, Conta conta, Banco banco) {
+        this.nome = nome;
+        this.conta = conta;
+        this.banco = banco;
+    }
+
+    @Override
+    public void run() {
+        while (true) {
+            int valorCompra = ThreadLocalRandom.current().nextInt(1, 3) * 100; // 100 ou 200
+            synchronized (conta) {
+                if (conta.getSaldo() >= valorCompra) {
+                    banco.transferencia(conta, loja.getConta(), valorCompra); // Transferência para a conta da loja
+                    System.out.println(nome + " realizou uma compra de R$" + valorCompra + ". Saldo restante: R$" + conta.getSaldo());
+                } else {
+                    System.out.println(nome + " não pode realizar a compra de R$" + valorCompra + " devido ao saldo insuficiente.");
+                    break;
+                }
+            }
+            try {
+                Thread.sleep(ThreadLocalRandom.current().nextInt(500, 2000)); // Tempo aleatório entre 0,5 e 2 segundos
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+}
+
+class Conta {
+    private int numero;
+    private double saldo;
+
+    public Conta(int numero, double saldoInicial) {
+        this.numero = numero;
+        this.saldo = saldoInicial;
+    }
+
+    public synchronized void creditar(double valor) {
+        saldo += valor;
+    }
+
+    public synchronized void debitar(double valor) {
+        saldo -= valor;
+    }
+
+    public double getSaldo() {
+        return saldo;
+    }
+
+    public int getNumero() {
+        return numero;
+    }
+}
+public class Main {
+    public static void main(String[] args) {
+        Banco banco = new Banco("Meu Banco");
+
+        // Criando as contas das lojas
+        Conta contaLoja1 = new Conta(1, 50000); // Saldo inicial alto para garantir que tenha fundos suficientes para pagar os salários
+        Conta contaLoja2 = new Conta(2, 50000); // Saldo inicial alto para garantir que tenha fundos suficientes para pagar os salários
+
+        Loja loja1 = new Loja("Loja 1", contaLoja1);
+        Loja loja2 = new Loja("Loja 2", contaLoja2);
+
+        // Criando as contas de investimentos dos funcionários
+        Conta contaInvestimentos1 = new Conta(101, 0.0);
+        Conta contaInvestimentos2 = new Conta(102, 0.0);
+        Conta contaInvestimentos3 = new Conta(103, 0.0);
+        Conta contaInvestimentos4 = new Conta(104, 0.0);
+
+        // Criando os funcionários
+        Funcionario func1 = new Funcionario("Funcionário 1", "Vendedor", loja1, contaLoja1, contaInvestimentos1, banco);
+        Funcionario func2 = new Funcionario("Funcionário 2", "Caixa", loja1, contaLoja1, contaInvestimentos2, banco);
+        Funcionario func3 = new Funcionario("Funcionário 3", "Vendedor", loja2, contaLoja2, contaInvestimentos3, banco);
+        Funcionario func4 = new Funcionario("Funcionário 4", "Caixa", loja2, contaLoja2, contaInvestimentos4, banco);
+
+        // Iniciando as threads dos funcionários
+        func1.start();
+        func2.start();
+        func3.start();
+        func4.start();
+
+        // Criando as contas dos clientes
+        Conta contaCliente1 = new Conta(201, 1000.0);
+        Conta contaCliente2 = new Conta(202, 1000.0);
+        Conta contaCliente3 = new Conta(203, 1000.0);
+        Conta contaCliente4 = new Conta(204, 1000.0);
+        Conta contaCliente5 = new Conta(205, 1000.0);
+
+        Cliente cliente1 = new Cliente("Cliente 1", contaCliente1, banco);
+        Cliente cliente2 = new Cliente("Cliente 2", contaCliente2, banco);
+        Cliente cliente3 = new Cliente("Cliente 3", contaCliente3, banco);
+        Cliente cliente4 = new Cliente("Cliente 4", contaCliente4, banco);
+        Cliente cliente5 = new Cliente("Cliente 5", contaCliente5, banco);
+
+        cliente1.start();
+        cliente2.start();
+        cliente3.start();
+        cliente4.start();
+        cliente5.start();
+
+        // Aguardando a conclusão das threads
+        try {
+            Thread.sleep(30000); // Espera 30 segundos para garantir que todas as transações sejam concluídas
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        // Exibindo saldos finais das contas
+        System.out.println("\nSaldos finais das contas:");
+        System.out.println("Conta Loja 1: R$" + banco.consultarSaldo(contaLoja1));
+        System.out.println("Conta Loja 2: R$" + banco.consultarSaldo(contaLoja2));
+        System.out.println("Conta Investimentos 1: R$" + banco.consultarSaldo(contaInvestimentos1));
+        System.out.println("Conta Investimentos 2: R$" + banco.consultarSaldo(contaInvestimentos2));
+        System.out.println("Conta Investimentos 3: R$" + banco.consultarSaldo(contaInvestimentos3));
+        System.out.println("Conta Investimentos 4: R$" + banco.consultarSaldo(contaInvestimentos4));
+        System.out.println("Conta Cliente 1: R$" + banco.consultarSaldo(contaCliente1));
+        System.out.println("Conta Cliente 2: R$" + banco.consultarSaldo(contaCliente2));
+        System.out.println("Conta Cliente 3: R$" + banco.consultarSaldo(contaCliente3));
+        System.out.println("Conta Cliente 4: R$" + banco.consultarSaldo(contaCliente4));
+        System.out.println("Conta Cliente 5: R$" + banco.consultarSaldo(contaCliente5));
+    }
+}
